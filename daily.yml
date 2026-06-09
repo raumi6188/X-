@@ -1,0 +1,42 @@
+name: Daily Stats Stock Mail
+
+on:
+  schedule:
+    # GitHub のスケジュールは UTC 基準。21:00 UTC = 翌 06:00 JST。
+    - cron: '0 21 * * *'
+  workflow_dispatch: {}   # 画面から手動実行するためのボタン（テスト用）
+
+permissions:
+  contents: write          # progress.json を書き戻すために必要
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Python を準備
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: メールを送信（原稿バンクから1本）
+        env:
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # 別アドレスに送る場合のみ TO_ADDRESS シークレットを追加し次行を有効化:
+          # TO_ADDRESS: ${{ secrets.TO_ADDRESS }}
+        run: python send_from_bank.py
+
+      - name: 送信位置を保存（次回の1本に進める）
+        run: |
+          if [ -n "$(git status --porcelain progress.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add progress.json
+            git commit -m "Advance progress [skip ci]"
+            git push
+          else
+            echo "progress.json に変更なし"
+          fi
